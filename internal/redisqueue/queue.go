@@ -4,6 +4,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -68,6 +70,11 @@ func Enqueue(payload []byte) {
 	}
 	if len(payload) == 0 {
 		return
+	}
+	if store := HistoryStore(); store != nil {
+		if err := store.RecordQueue(payload); err != nil {
+			log.WithError(err).Error("usage history: could not persist record")
+		}
 	}
 	if global.publishToSubscribers(payload) {
 		return
