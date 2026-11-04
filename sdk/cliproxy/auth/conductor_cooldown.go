@@ -1003,6 +1003,9 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 					if result.Error != nil && result.Error.Code == ErrorCodeForceCooldown {
 						disableCooling = false
 					}
+					if skipAPIKeyCreditCooldown(auth, result.Error) {
+						disableCooling = true
+					}
 					state := ensureModelState(auth, modelKey)
 					modelState = state
 					// Normalize a naturally expired credential-quota wrap before
@@ -1329,6 +1332,9 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 				disableCooling := m.cooldownDisabledForAuth(auth)
 				if result.Error != nil && result.Error.Code == ErrorCodeForceCooldown {
 					disableCooling = false
+				}
+				if skipAPIKeyCreditCooldown(auth, result.Error) {
+					disableCooling = true
 				}
 				if !wasTerminalUnauthorized {
 					applyAuthFailureState(auth, result.Error, result.RetryAfter, now, disableCooling)

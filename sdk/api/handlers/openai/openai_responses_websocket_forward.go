@@ -746,10 +746,23 @@ func buildResponsesWebsocketErrorPayload(errMsg *interfaces.ErrorMessage) ([]byt
 		return nil, errSet
 	}
 
-	if errMsg != nil && errMsg.Addon != nil {
+	var wsHeaders http.Header
+	if errMsg != nil {
+		wsHeaders = errMsg.Addon
+	}
+	if codexHeaders := handlers.CodexUsageLimitHeaders(status, errCause); codexHeaders != nil {
+		wsHeaders = wsHeaders.Clone()
+		if wsHeaders == nil {
+			wsHeaders = make(http.Header, len(codexHeaders))
+		}
+		for key, values := range codexHeaders {
+			wsHeaders[key] = values
+		}
+	}
+	if wsHeaders != nil {
 		headersDoc := ojson.NewDoc([]byte(`{}`))
 		hasHeaders := false
-		for key, values := range errMsg.Addon {
+		for key, values := range wsHeaders {
 			if len(values) == 0 {
 				continue
 			}
