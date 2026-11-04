@@ -916,6 +916,7 @@ type SessionAffinitySelector struct {
 	matcher           *cliproxysession.MerklePrefixMatcher
 	subagentAffinity  bool
 	rebindOnQuotaOnly bool
+	reclaim           bool
 }
 
 const (
@@ -1047,6 +1048,8 @@ type SessionAffinityConfig struct {
 	TTL              time.Duration
 	SubagentAffinity *bool
 	RebindOn         string
+	// Reclaim releases a binding held by a lower-priority credential once a higher one is usable.
+	Reclaim bool
 }
 
 // NewSessionAffinitySelector creates a new session-aware selector.
@@ -1076,6 +1079,7 @@ func NewSessionAffinitySelectorWithConfig(cfg SessionAffinityConfig) *SessionAff
 		matcher:           cliproxysession.NewMerklePrefixMatcher(cfg.TTL),
 		subagentAffinity:  subagentAffinity,
 		rebindOnQuotaOnly: rebindOnQuotaOnly,
+		reclaim:           cfg.Reclaim,
 	}
 }
 
@@ -1198,8 +1202,9 @@ func (s *SessionAffinitySelector) Pick(ctx context.Context, provider, model stri
 	}
 
 	if cachedAuthID, ok := s.cache.GetAndRefresh(cacheKey); ok {
+		reclaim := s.reclaimable(cachedAuthID, availabilityCandidates, available)
 		for _, auth := range available {
-			if auth.ID == cachedAuthID {
+			if auth.ID == cachedAuthID && !reclaim {
 				bind(auth.ID, true)
 				entry.Infof("session-affinity: cache hit | session=%s auth=%s provider=%s model=%s", truncateSessionID(primaryID), auth.ID, provider, model)
 				return auth, nil
@@ -1213,12 +1218,16 @@ func (s *SessionAffinitySelector) Pick(ctx context.Context, provider, model stri
 		if auth == nil {
 			return nil, nil
 		}
-		if s.shouldPreserveBindingWhenUnavailable(ctx, availabilityCandidates, model, cachedAuthID, now) {
+		if !reclaim && s.shouldPreserveBindingWhenUnavailable(ctx, availabilityCandidates, model, cachedAuthID, now) {
 			bind(cachedAuthID, false)
 			entry.Infof("session-affinity: cache hit but auth transiently unavailable, failover without rebinding | session=%s bound_auth=%s failover_auth=%s provider=%s model=%s", truncateSessionID(primaryID), cachedAuthID, auth.ID, provider, model)
 			return auth, nil
 		}
 		bind(auth.ID, true)
+		if reclaim {
+			entry.Infof("session-affinity: reclaimed to higher priority | session=%s from_auth=%s auth=%s provider=%s model=%s", truncateSessionID(primaryID), cachedAuthID, auth.ID, provider, model)
+			return auth, nil
+		}
 		entry.Infof("session-affinity: cache hit but auth unavailable, reselected | session=%s auth=%s provider=%s model=%s", truncateSessionID(primaryID), auth.ID, provider, model)
 		return auth, nil
 	}
@@ -1235,7 +1244,7 @@ func (s *SessionAffinitySelector) Pick(ctx context.Context, provider, model stri
 				providers[candidateProvider] = struct{}{}
 			}
 		}
-		if parentAuthID := s.cache.latestSessionAuth(fallbackID, providers); parentAuthID != "" {
+		if parentAuthID := s.cache.latestSessionAuth(fallbackID, providers); parentAuthID != "" && !s.reclaimable(parentAuthID, availabilityCandidates, available) {
 			for _, auth := range available {
 				if auth.ID == parentAuthID {
 					bind(auth.ID, true)
@@ -1247,7 +1256,7 @@ func (s *SessionAffinitySelector) Pick(ctx context.Context, provider, model stri
 	}
 
 	if fallbackKey != "" {
-		if cachedAuthID, ok := s.cache.Get(fallbackKey); ok {
+		if cachedAuthID, ok := s.cache.Get(fallbackKey); ok && !s.reclaimable(cachedAuthID, availabilityCandidates, available) {
 			for _, auth := range available {
 				if auth.ID == cachedAuthID {
 					if !isSubagent || s.subagentAffinity {
@@ -1326,7 +1335,7 @@ func (s *SessionAffinitySelector) pickLCP(ctx context.Context, provider, model s
 	}
 
 	var preservedAuthID string
-	if match, ok := s.matcher.MatchFingerprintsWithContext(namespace, fingerprints, tailFingerprints, envDigest, minPrefixLength); ok {
+	if match, ok := s.matcher.MatchFingerprintsWithContext(namespace, fingerprints, tailFingerprints, envDigest, minPrefixLength); ok && !s.reclaimable(match.AuthID, availabilityCandidates, available) {
 		for _, auth := range available {
 			if auth == nil || auth.ID != match.AuthID {
 				continue
