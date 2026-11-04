@@ -439,11 +439,7 @@ func (s *Server) Start() error {
 	}
 }
 
-// Stop closes listeners and shuts down the API server.
-// When server.shutdown-timeout is a positive number of seconds, Stop first lets
-// in-flight requests finish within that budget (http.Server.Shutdown), then
-// forcibly closes whatever remains. The default 0 closes immediately, preserving
-// the behavior introduced to prevent hanging on active requests (#6094).
+// Stop closes listeners and shuts down the API server, optionally draining active requests.
 //
 // Parameters:
 //   - ctx: Context bounding the whole stop operation.
@@ -484,6 +480,9 @@ func (s *Server) Stop(ctx context.Context) error {
 		drainTimeout := 0
 		if cfg := s.getConfig(); cfg != nil {
 			drainTimeout = cfg.ShutdownTimeoutSeconds
+		}
+		if drainTimeout <= 0 {
+			drainTimeout = int(ShutdownDrain().Seconds())
 		}
 		if drainTimeout > 0 {
 			// Bound the drain by the configured timeout even when the caller's

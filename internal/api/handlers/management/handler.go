@@ -62,6 +62,7 @@ type Handler struct {
 	pluginReleases          pluginReleaseCache
 	authCache               managementAuthCache
 	siwcOAuthFactory        func(*config.Config, string) siwcOAuthService
+	claudeUsage             claudeUsageCache
 	siwcCommitMu            sync.Mutex
 	v8AuthUploadMu          sync.Mutex
 	pluginLoginSaveMu       sync.Mutex

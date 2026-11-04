@@ -17,10 +17,12 @@ func (h *OpenAIAPIHandler) codexClientModelsResponseForContext(c *gin.Context, c
 		version = clientVersion[0]
 	}
 	optimizeMultiAgentV2 := false
+	codexModelsOnly := false
 	var applyPatchCapabilityForModel codexmodels.ApplyPatchCapabilityForModelFunc
 	if h != nil {
 		if cfg := h.CurrentConfig(); cfg != nil {
 			optimizeMultiAgentV2 = cfg.Client.Codex.OptimizeMultiAgentV2
+			codexModelsOnly = cfg.Client.Codex.CodexModelsOnly
 			if cfg.Client.Codex.EnableApplyPatch {
 				applyPatchCapabilityForModel = h.SupportsApplyPatchModel
 			}
@@ -34,6 +36,9 @@ func (h *OpenAIAPIHandler) codexClientModelsResponseForContext(c *gin.Context, c
 	models := h.Models()
 	if c != nil {
 		models = h.modelsForAccess(c)
+	}
+	if codexModelsOnly {
+		models = codexmodels.FilterCodexServedModels(models, modelRegistry.GetModelProviders)
 	}
 	return codexmodels.BuildResponseForClientWithToolCapabilities(models, modelRegistry.GetModelProviders, modelRegistry.GetResponsesWebSearchCapability, applyPatchCapabilityForModel, toolSearchCapabilityForModel, optimizeMultiAgentV2, version)
 }

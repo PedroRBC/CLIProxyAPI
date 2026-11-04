@@ -29,6 +29,13 @@ server:
   # Server port
   port: 8317
 
+  # Graceful shutdown drain (environment variable, not a config key):
+  # CLIPROXY_SHUTDOWN_DRAIN=5m makes SIGINT/SIGTERM stop accepting new connections,
+  # let in-flight requests (including SSE streams) finish for up to that Go duration,
+  # then flush queued usage records before exit. A second signal exits immediately.
+  # Unset, empty, invalid or <= 0 keeps the immediate close. Give container stop
+  # timeouts (e.g. Compose stop_grace_period) at least the drain plus ~30s.
+
   # Maximum allowed size (in bytes) for incoming HTTP request bodies.
   # Requests exceeding this limit are rejected with HTTP 413 Payload Too Large.
   # Default is 0 (disabled / no limit).

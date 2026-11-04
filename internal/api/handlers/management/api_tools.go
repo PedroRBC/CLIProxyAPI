@@ -188,56 +188,62 @@ func (h *Handler) APICall(c *gin.Context) {
 		body.Data = strings.ReplaceAll(body.Data, "$TOKEN$", replacement)
 	}
 
-	var requestBody io.Reader
-	if body.Data != "" {
-		requestBody = strings.NewReader(body.Data)
-	}
-
-	req, errNewRequest := http.NewRequestWithContext(c.Request.Context(), method, urlStr, requestBody)
-	if errNewRequest != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to build request"})
-		return
-	}
-
-	for key, value := range reqHeaders {
-		if strings.EqualFold(key, "host") {
-			hostOverride = strings.TrimSpace(value)
-			continue
+	fetch := func(ctx context.Context) (apiCallResponse, error) {
+		var requestBody io.Reader
+		if body.Data != "" {
+			requestBody = strings.NewReader(body.Data)
 		}
-		req.Header.Set(key, value)
-	}
-	if hostOverride != "" {
-		req.Host = hostOverride
-	}
 
-	httpClient := &http.Client{
-		Timeout: defaultAPICallTimeout,
-	}
-	httpClient.Transport = h.apiCallTransport(auth, requestProxyURL)
-
-	resp, errDo := httpClient.Do(req)
-	if errDo != nil {
-		log.WithError(errDo).Debug("management APICall request failed")
-		c.JSON(http.StatusBadGateway, gin.H{"error": "request failed"})
-		return
-	}
-	defer func() {
-		if errClose := resp.Body.Close(); errClose != nil {
-			log.Errorf("response body close error: %v", errClose)
+		req, errNewRequest := http.NewRequestWithContext(ctx, method, urlStr, requestBody)
+		if errNewRequest != nil {
+			return apiCallResponse{}, &apiCallFailure{status: http.StatusBadRequest, message: "failed to build request"}
 		}
-	}()
 
-	respBody, errReadAll := io.ReadAll(resp.Body)
-	if errReadAll != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to read response"})
-		return
+		for key, value := range reqHeaders {
+			if strings.EqualFold(key, "host") {
+				hostOverride = strings.TrimSpace(value)
+				continue
+			}
+			req.Header.Set(key, value)
+		}
+		if hostOverride != "" {
+			req.Host = hostOverride
+		}
+
+		httpClient := &http.Client{
+			Timeout: defaultAPICallTimeout,
+		}
+		httpClient.Transport = h.apiCallTransport(auth, requestProxyURL)
+
+		resp, errDo := httpClient.Do(req)
+		if errDo != nil {
+			log.WithError(errDo).Debug("management APICall request failed")
+			return apiCallResponse{}, &apiCallFailure{status: http.StatusBadGateway, message: "request failed"}
+		}
+		defer func() {
+			if errClose := resp.Body.Close(); errClose != nil {
+				log.Errorf("response body close error: %v", errClose)
+			}
+		}()
+
+		respBody, errReadAll := io.ReadAll(resp.Body)
+		if errReadAll != nil {
+			return apiCallResponse{}, &apiCallFailure{status: http.StatusBadGateway, message: "failed to read response"}
+		}
+
+		return apiCallResponse{
+			StatusCode: resp.StatusCode,
+			Header:     resp.Header,
+			Body:       string(respBody),
+		}, nil
 	}
 
-	c.JSON(http.StatusOK, apiCallResponse{
-		StatusCode: resp.StatusCode,
-		Header:     resp.Header,
-		Body:       string(respBody),
-	})
+	result, errCall := h.doAPICall(c.Request.Context(), claudeUsageCacheKey(method, parsedURL, authIndex, auth), fetch)
+	if errCall != nil {
+		writeAPICallFailure(c, errCall)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func firstNonEmptyString(values ...*string) string {

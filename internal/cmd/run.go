@@ -45,6 +45,10 @@ func StartServiceWithPluginHost(cfg *config.Config, configPath string, localPass
 
 	ctxSignal, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+	if api.ShutdownDrain() > 0 {
+		// Restore default signal handling once draining starts so a second signal exits immediately.
+		context.AfterFunc(ctxSignal, cancel)
+	}
 
 	runCtx := ctxSignal
 	if localPassword != "" {

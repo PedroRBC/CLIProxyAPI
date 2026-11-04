@@ -69,7 +69,7 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 
 	defer func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second+api.ShutdownDrain())
 		defer shutdownCancel()
 		if errShutdown := s.Shutdown(shutdownCtx); errShutdown != nil {
 			log.Errorf("service shutdown returned error: %v", errShutdown)
@@ -372,6 +372,10 @@ func (s *Service) Shutdown(ctx context.Context) error {
 					shutdownErr = errStop
 				}
 			}
+		}
+		// Flush usage from drained requests before plugins are torn down.
+		if api.ShutdownDrain() > 0 && !usage.StopDefaultAndWait(ctx) {
+			log.Warn("usage queue did not drain before the shutdown deadline")
 		}
 
 		if s.pluginHost != nil {
