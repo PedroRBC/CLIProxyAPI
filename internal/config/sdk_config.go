@@ -151,6 +151,11 @@ type CodexClientConfig struct {
 	// WebSearchResultCache configures caching of upstream web search results for
 	// Codex Responses clients that drop search results from replayed history.
 	WebSearchResultCache CodexWebSearchResultCacheConfig `yaml:"web-search-result-cache" json:"web-search-result-cache"`
+
+	// CodexModelsOnly limits the Codex client catalog (/v1/models?client_version=...) to
+	// models a Codex credential serves. Explicit requests for other models still route.
+	// Default false lists every routed model.
+	CodexModelsOnly bool `yaml:"codex-models-only" json:"codex-models-only"`
 }
 
 const (

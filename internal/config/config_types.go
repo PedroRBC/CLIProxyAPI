@@ -486,7 +486,9 @@ type QuotaExceeded struct {
 // RoutingConfig configures how credentials are selected for requests.
 type RoutingConfig struct {
 	// Strategy selects the credential selection strategy.
-	// Supported values: "round-robin" (default), "weighted-round-robin", "fill-first".
+	// Supported values: "round-robin" (default), "weighted-round-robin", "fill-first",
+	// "reset-soonest" (among the highest usable priority, the credential whose weekly
+	// window resets first).
 	Strategy string `yaml:"strategy,omitempty" json:"strategy,omitempty"`
 
 	// SessionAffinity enables universal session-sticky routing for all clients.
@@ -516,6 +518,11 @@ type RoutingConfig struct {
 	//     auth errors (429, 401/402/403, 404/model support, invalid_grant) rebind as normal.
 	// Ignored when SessionAffinity is false.
 	SessionAffinityRebindOn string `yaml:"session-affinity-rebind-on,omitempty" json:"session-affinity-rebind-on,omitempty"`
+
+	// SessionAffinityReclaim releases a session bound to a lower-priority credential as soon
+	// as a higher-priority credential is usable again, so the next request moves back up.
+	// Default false keeps the established binding. Ignored when SessionAffinity is false.
+	SessionAffinityReclaim bool `yaml:"session-affinity-reclaim,omitempty" json:"session-affinity-reclaim,omitempty"`
 }
 
 // OAuthModelAlias defines a model ID alias for a specific channel.
