@@ -29,6 +29,12 @@ func TestImportPersistsAndReimportDoesNotDuplicate(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("rows=%v", rows)
 	}
+	for path, mode := range map[string]os.FileMode{dir: 0700, filepath.Join(dir, "imported.json"): 0600, filepath.Join(dir, "live.jsonl"): 0600} {
+		info, err := os.Stat(path)
+		if err != nil || info.Mode().Perm() != mode {
+			t.Fatalf("%s mode mismatch: %v", path, err)
+		}
+	}
 	counts := map[string]int64{}
 	for _, row := range rows {
 		counts[row.Source] += row.Total
