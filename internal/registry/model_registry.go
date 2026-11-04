@@ -1472,7 +1472,7 @@ func (r *ModelRegistry) ClientSupportsModel(clientID, modelID string) bool {
 		}
 	}
 
-	return false
+	return r.clientProviders[clientID] == "claude" && r.unregisteredClaudeModelLocked(modelID)
 }
 
 // IsModelSuspendedForClient reports whether a model is currently suspended for a specific client.
