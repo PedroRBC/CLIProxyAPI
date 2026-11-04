@@ -61,6 +61,7 @@ type routingRuntimeState struct {
 	sessionAffinityTTL       time.Duration
 	sessionAffinitySubagents bool
 	sessionAffinityRebindOn  string
+	sessionAffinityReclaim   bool
 }
 
 func normalizedRoutingRuntimeState(cfg *config.Config) routingRuntimeState {
@@ -100,6 +101,7 @@ func normalizedRoutingRuntimeState(cfg *config.Config) routingRuntimeState {
 			state.sessionAffinityRebindOn = coreauth.SessionAffinityRebindOnNever
 		}
 	}
+	state.sessionAffinityReclaim = state.sessionAffinity && cfg.Routing.SessionAffinityReclaim
 	return state
 }
 
@@ -128,6 +130,7 @@ func newRoutingSelectorWithExisting(state routingRuntimeState, existing coreauth
 			TTL:              state.sessionAffinityTTL,
 			SubagentAffinity: &subagents,
 			RebindOn:         state.sessionAffinityRebindOn,
+			Reclaim:          state.sessionAffinityReclaim,
 		})
 	}
 	return selector
