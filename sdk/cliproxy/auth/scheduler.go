@@ -1195,8 +1195,10 @@ func (m *scheduledAuthMeta) supportsModel(modelKey string) bool {
 	if len(m.supportedModelSet) == 0 {
 		return false
 	}
-	_, ok := m.supportedModelSet[modelKey]
-	return ok
+	if _, ok := m.supportedModelSet[modelKey]; ok {
+		return true
+	}
+	return m.providerKey == "claude" && registry.GetGlobalRegistry().IsUnregisteredClaudeModel(modelKey)
 }
 
 // upsertEntryLocked updates or inserts one auth entry and rebuilds indexes when ordering changes.

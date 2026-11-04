@@ -75,7 +75,7 @@ func GetProviderName(modelName string) []string {
 		return providers
 	}
 
-	return providers
+	return registry.GetGlobalRegistry().UnregisteredClaudeProviders(modelName)
 }
 
 // ResolveAutoModel resolves the "auto" model name to an actual available model.
