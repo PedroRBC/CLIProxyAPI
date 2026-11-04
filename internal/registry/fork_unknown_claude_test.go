@@ -37,4 +37,12 @@ func TestUnregisteredClaudeModelRouting(t *testing.T) {
 	if r.ClientSupportsModel("claude-1", "claude-on-codex") {
 		t.Fatal("registered model must keep normal support checks")
 	}
+	// A catalog Claude model that no credential registers was excluded on purpose.
+	catalog := GetClaudeModels()
+	if len(catalog) == 0 {
+		t.Fatal("static Claude catalog is empty")
+	}
+	if r.ClientSupportsModel("claude-1", catalog[0].ID) || r.UnregisteredClaudeProviders(catalog[0].ID) != nil {
+		t.Fatalf("excluded catalog model %s must stay unroutable", catalog[0].ID)
+	}
 }
