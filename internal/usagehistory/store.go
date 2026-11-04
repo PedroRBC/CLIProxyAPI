@@ -67,6 +67,10 @@ func Open(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
+	// NFSv4 inheritance may override creation modes on NAS datasets.
+	if err := os.Chmod(dir, 0700); err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(filepath.Join(dir, "imported.json"))
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
@@ -252,6 +256,10 @@ func atomicWrite(path string, data []byte) error {
 		return err
 	}
 	defer os.Remove(f.Name())
+	if err := f.Chmod(0600); err != nil {
+		f.Close()
+		return err
+	}
 	if _, err := f.Write(data); err != nil {
 		f.Close()
 		return err
