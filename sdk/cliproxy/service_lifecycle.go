@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/api"
@@ -13,6 +14,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/runtime/executor"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/runtime/executor/helps"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/usagehistory"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v8/sdk/access"
 	sdkAuth "github.com/router-for-me/CLIProxyAPI/v8/sdk/auth"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
@@ -56,8 +58,16 @@ func (s *Service) Run(ctx context.Context) error {
 
 	s.startModelCatalogUpdaters(ctx)
 
-	usage.StartDefault(ctx)
 	cfg := s.currentConfig()
+	if s.configPath != "" {
+		store, err := usagehistory.Open(filepath.Join(filepath.Dir(s.configPath), "usage-history"))
+		if err != nil {
+			return fmt.Errorf("open persistent usage history: %w", err)
+		}
+		redisqueue.SetHistoryStore(store)
+		defer redisqueue.SetHistoryStore(nil)
+	}
+	usage.StartDefault(ctx)
 	homeEnabled := cfg != nil && cfg.Home.Enabled
 	if homeEnabled {
 		s.cfgMu.Lock()
