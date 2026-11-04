@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 	"time"
 
@@ -13,6 +14,9 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/api/handlers"
 	coreauth "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
 )
+
+// t3ClaudeGatewayResetPattern is copied from T3 Code's Claude adapter (gatewayCooldownResetAt).
+var t3ClaudeGatewayResetPattern = regexp.MustCompile(`^API Error: 503 \[[^\]\r\n]+\] \[429\]: \{"type":"error","error":\{"type":"rate_limit_error",[^\r\n]*\} \(reset after (?:(\d+)h ?)?(?:(\d+)m ?)?(?:(\d+)s)?\)`)
 
 type claudeLimitTestError struct {
 	status     int
@@ -68,6 +72,11 @@ func TestClaudeCodeLongRateLimitBecomesResumable503(t *testing.T) {
 			want := "[cliproxy] [429]: " + string(original) + " (reset after " + tc.want + ")"
 			if got := ojson.GetBytes(body, "error.message").String(); got != want {
 				t.Fatalf("message = %q\nwant      %q", got, want)
+			}
+			// Claude Code reports this as "API Error: 503 <message>"; this is T3 Code's parser.
+			match := t3ClaudeGatewayResetPattern.FindStringSubmatch("API Error: 503 " + want)
+			if match == nil {
+				t.Fatalf("T3 Code parser does not match %q", want)
 			}
 			if ojson.GetBytes(original, "error.type").String() != "rate_limit_error" {
 				t.Fatalf("original envelope = %s", original)
