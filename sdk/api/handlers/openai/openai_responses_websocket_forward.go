@@ -799,6 +799,13 @@ func buildResponsesWebsocketErrorPayload(errMsg *interfaces.ErrorMessage) ([]byt
 		headersDoc := ojson.NewDoc([]byte(`{}`))
 		hasHeaders := false
 		trustedDeadline := coreauth.HasTrustedRetryDeadline(errMsg.Error)
+		addon := errMsg.Addon.Clone()
+		if addon == nil {
+			addon = make(http.Header)
+		}
+		for key, values := range handlers.CodexUsageLimitHeaders(status, errCause) {
+			addon[key] = values
+		}
 		for key, values := range coreauth.SafeResponseHeaders(errMsg.Error) {
 			if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
 				continue
@@ -809,7 +816,7 @@ func buildResponsesWebsocketErrorPayload(errMsg *interfaces.ErrorMessage) ([]byt
 			}
 			hasHeaders = true
 		}
-		for key, values := range errMsg.Addon {
+		for key, values := range addon {
 			if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
 				continue
 			}

@@ -2154,6 +2154,9 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 							}
 						}
 					}
+					if skipAPIKeyCreditCooldown(auth, result.Error) {
+						disableCooling = true
+					}
 					ownAuthForceDeadline, ownAuthRetryDeadline := applyAuthFailureState(auth, result.Error, result.RetryAfter, now, disableCooling)
 					cooldownSeq := m.currentExecutionSeq()
 					isQuota429 := !disableCooling &&

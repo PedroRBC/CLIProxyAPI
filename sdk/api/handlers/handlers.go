@@ -71,10 +71,10 @@ func BuildErrorResponseBody(status int, errText string) []byte {
 	return BuildErrorResponseBodyWithError(status, errText, nil)
 }
 
-// BuildErrorResponseBodyWithError builds an OpenAI-compatible JSON error response body,
+// buildErrorResponseBodyWithError builds an OpenAI-compatible JSON error response body,
 // preserving structured classifications (such as terminal upstream auth failures and retryable flags)
 // present in err.
-func BuildErrorResponseBodyWithError(status int, errText string, err error) []byte {
+func buildErrorResponseBodyWithError(status int, errText string, err error) []byte {
 	if status <= 0 {
 		status = http.StatusInternalServerError
 	}

@@ -675,6 +675,11 @@ func (h *ClaudeCodeAPIHandler) WriteErrorResponse(c *gin.Context, msg *interface
 	if err != nil {
 		body = []byte(`{"type":"error","error":{"type":"api_error","message":"Internal Server Error"}}`)
 	}
+	if resumable, ok := claudeCodeResumableLimitBody(c, status, msg, body); ok {
+		status = http.StatusServiceUnavailable
+		body = resumable
+		c.Writer.Header().Set("x-should-retry", "false")
+	}
 	appendClaudeAPIResponse(c, body)
 	if !c.Writer.Written() {
 		c.Writer.Header().Set("Content-Type", "application/json")

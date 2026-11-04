@@ -144,6 +144,11 @@ func (h *BaseAPIHandler) WriteErrorResponse(c *gin.Context, msg *interfaces.Erro
 			}
 		}
 	}
+	if msg != nil {
+		for key, values := range CodexUsageLimitHeaders(status, msg.Error) {
+			c.Writer.Header()[http.CanonicalHeaderKey(key)] = values
+		}
+	}
 
 	errText := http.StatusText(status)
 	if msg != nil && msg.Error != nil {

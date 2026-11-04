@@ -393,6 +393,7 @@ func (m *Manager) Execute(ctx context.Context, providers []string, req cliproxye
 		lastErr = preferredExecutionAttemptError(lastErr, preferredUpstreamErr)
 		lastErr = unwrapExecutionBoundaryError(lastErr)
 		lastErr = m.normalizeSessionAffinityNeverTerminalError(lastErr, normalized, retryModel, opts)
+		lastErr = m.subscriptionCooldownForCreditLow(normalized, retryModel, lastErr)
 		if !terminalRoundRejectedByScheduler && !continuitySession.terminated && hasAntigravityProvider(normalized) && shouldAttemptAntigravityCreditsFallback(m, lastErr, normalized) {
 			if resp, ok, errCredits := m.tryAntigravityCreditsExecute(ctx, req, opts); errCredits != nil {
 				return cliproxyexecutor.Response{}, errCredits
@@ -479,6 +480,7 @@ func (m *Manager) ExecuteCount(ctx context.Context, providers []string, req clip
 		lastErr = preferredExecutionAttemptError(lastErr, preferredUpstreamErr)
 		lastErr = unwrapExecutionBoundaryError(lastErr)
 		lastErr = m.normalizeSessionAffinityNeverTerminalError(lastErr, normalized, retryModel, opts)
+		lastErr = m.subscriptionCooldownForCreditLow(normalized, retryModel, lastErr)
 		lastErr = m.annotatePoolCooldownTerminalError(ctx, normalized, retryModel, opts, lastErr, selectionCooldownDeadline)
 		return cliproxyexecutor.Response{}, lastErr
 	}
