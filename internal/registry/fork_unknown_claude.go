@@ -20,6 +20,14 @@ func (r *ModelRegistry) unregisteredClaudeModelLocked(modelID string) bool {
 			return false
 		}
 	}
+	// A catalog model nobody registers was excluded on purpose (oauth-excluded-models)
+	// and must stay unroutable. The catalog lock is only held for single assignments, so
+	// taking it under r.mutex cannot deadlock.
+	for _, model := range GetClaudeModels() {
+		if model != nil && strings.EqualFold(model.ID, trimmed) {
+			return false
+		}
+	}
 	return true
 }
 
