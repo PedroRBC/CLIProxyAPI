@@ -635,6 +635,7 @@ type Manager struct {
 	cond   *sync.Cond
 	queue  []queueItem
 	closed bool
+	done   chan struct{} // closed when run exits; guarded by mu
 
 	pluginsMu sync.RWMutex
 	plugins   []Plugin
@@ -659,7 +660,14 @@ func (m *Manager) Start(ctx context.Context) {
 		}
 		var workerCtx context.Context
 		workerCtx, m.cancel = context.WithCancel(ctx)
-		go m.run(workerCtx)
+		done := make(chan struct{})
+		m.mu.Lock()
+		m.done = done
+		m.mu.Unlock()
+		go func() {
+			defer close(done)
+			m.run(workerCtx)
+		}()
 	})
 }
 
