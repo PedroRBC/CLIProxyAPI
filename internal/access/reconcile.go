@@ -86,6 +86,7 @@ func ApplyAccessProviders(manager *sdkaccess.Manager, oldCfg, newCfg *config.Con
 
 	existing := manager.Providers()
 	configaccess.Register(&newCfg.SDKConfig)
+	configaccess.RegisterOpenAICompatibility(newCfg)
 	providers, added, updated, removed, err := ReconcileProviders(oldCfg, newCfg, existing)
 	if err != nil {
 		log.Errorf("failed to reconcile request auth providers: %v", err)

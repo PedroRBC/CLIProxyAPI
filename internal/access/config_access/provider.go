@@ -4,33 +4,94 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"sync"
 
+	proxyconfig "github.com/router-for-me/CLIProxyAPI/v8/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/util"
 	sdkaccess "github.com/router-for-me/CLIProxyAPI/v8/sdk/access"
 	sdkconfig "github.com/router-for-me/CLIProxyAPI/v8/sdk/config"
 )
+
+var inlineProvider *provider
+var registeredCompatTypes []string
 
 // Register ensures the config-access provider is available to the access manager.
 func Register(cfg *sdkconfig.SDKConfig) {
 	if cfg == nil {
 		sdkaccess.UnregisterProvider(sdkaccess.AccessProviderTypeConfigAPIKey)
+		inlineProvider = nil
 		return
 	}
 
 	keys := normalizeKeys(cfg.APIKeys)
 	if len(keys) == 0 {
 		sdkaccess.UnregisterProvider(sdkaccess.AccessProviderTypeConfigAPIKey)
+		inlineProvider = nil
 		return
 	}
 
+	inlineProvider = newProvider(sdkaccess.DefaultAccessProviderName, keys)
 	sdkaccess.RegisterProvider(
 		sdkaccess.AccessProviderTypeConfigAPIKey,
-		newProvider(sdkaccess.DefaultAccessProviderName, keys),
+		inlineProvider,
 	)
 }
 
+// RegisterOpenAICompatibility registers client keys restricted to individual
+// OpenAI-compatible providers.
+func RegisterOpenAICompatibility(cfg *proxyconfig.Config) {
+	for _, typ := range registeredCompatTypes {
+		sdkaccess.UnregisterProvider(typ)
+	}
+	registeredCompatTypes = nil
+	restricted := make(map[string]struct{})
+	providerKeys := make(map[string][]string)
+	providerOrder := make([]string, 0)
+	if cfg != nil {
+		for _, compat := range cfg.OpenAICompatibility {
+			providerName := strings.ToLower(strings.TrimSpace(compat.Name))
+			if providerName == "" {
+				providerName = "openai-compatibility"
+			}
+			providerName = util.OpenAICompatibleProviderKey(providerName)
+			keys := normalizeKeys(compat.AllowedAPIKeys)
+			if len(keys) == 0 {
+				continue
+			}
+			for _, key := range keys {
+				restricted[key] = struct{}{}
+			}
+			if _, exists := providerKeys[providerName]; !exists {
+				providerOrder = append(providerOrder, providerName)
+			}
+			providerKeys[providerName] = append(providerKeys[providerName], keys...)
+		}
+		for _, providerName := range providerOrder {
+			keys := providerKeys[providerName]
+			typ := "config-api-key:" + providerName
+			sdkaccess.RegisterProvider(typ, newProvider(providerName, normalizeKeys(keys)))
+			registeredCompatTypes = append(registeredCompatTypes, typ)
+		}
+	}
+	if inlineProvider != nil {
+		inlineProvider.setRestricted(restricted)
+	}
+}
+
 type provider struct {
-	name string
-	keys map[string]struct{}
+	name       string
+	keys       map[string]struct{}
+	restricted map[string]struct{}
+	mu         sync.RWMutex
+}
+
+func (p *provider) setRestricted(keys map[string]struct{}) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	p.restricted = keys
+	p.mu.Unlock()
 }
 
 func newProvider(name string, keys []string) *provider {
@@ -56,6 +117,9 @@ func (p *provider) Authenticate(_ context.Context, r *http.Request) (*sdkaccess.
 	if p == nil {
 		return nil, sdkaccess.NewNotHandledError()
 	}
+	p.mu.RLock()
+	restricted := p.restricted
+	p.mu.RUnlock()
 	if len(p.keys) == 0 {
 		return nil, sdkaccess.NewNotHandledError()
 	}
@@ -90,6 +154,9 @@ func (p *provider) Authenticate(_ context.Context, r *http.Request) (*sdkaccess.
 			continue
 		}
 		if _, ok := p.keys[candidate.value]; ok {
+			if _, restricted := restricted[candidate.value]; restricted {
+				return nil, sdkaccess.NewNotHandledError()
+			}
 			return &sdkaccess.Result{
 				Provider:  p.Identifier(),
 				Principal: candidate.value,

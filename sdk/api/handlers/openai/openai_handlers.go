@@ -25,6 +25,7 @@ import (
 	responsesconverter "github.com/router-for-me/CLIProxyAPI/v8/internal/translator/openai/openai/responses"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/util"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/api/handlers"
+	coreusage "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/usage"
 )
 
 // OpenAIAPIHandler contains the handlers for OpenAI API endpoints.
@@ -65,7 +66,7 @@ func (h *OpenAIAPIHandler) Models() []map[string]any {
 func (h *OpenAIAPIHandler) OpenAIModels(c *gin.Context) {
 	if _, ok := c.Request.URL.Query()["client_version"]; ok {
 		clientVersion := c.Query("client_version")
-		body, errMarshal := codexmodels.MarshalCompact(h.codexClientModelsResponse(clientVersion))
+		body, errMarshal := codexmodels.MarshalCompact(h.codexClientModelsResponseForContext(c, clientVersion))
 		if errMarshal != nil {
 			c.JSON(http.StatusInternalServerError, handlers.ErrorResponse{
 				Error: handlers.ErrorDetail{
@@ -80,7 +81,7 @@ func (h *OpenAIAPIHandler) OpenAIModels(c *gin.Context) {
 	}
 
 	// Get all available models
-	allModels := h.Models()
+	allModels := h.modelsForAccess(c)
 
 	// Filter to only include the 4 required fields: id, object, created, owned_by
 	filteredModels := make([]map[string]any, len(allModels))
@@ -107,6 +108,25 @@ func (h *OpenAIAPIHandler) OpenAIModels(c *gin.Context) {
 		"object": "list",
 		"data":   filteredModels,
 	})
+}
+
+func (h *OpenAIAPIHandler) modelsForAccess(c *gin.Context) []map[string]any {
+	models := h.Models()
+	provider := strings.TrimSpace(coreusage.AccessProviderFromContext(c))
+	if provider == "" || (!strings.HasPrefix(provider, "openai-compatible-") && provider != "openai-compatibility") {
+		return models
+	}
+	filtered := make([]map[string]any, 0, len(models))
+	for _, model := range models {
+		id, _ := model["id"].(string)
+		for _, candidate := range registry.GetGlobalRegistry().GetModelProviders(id) {
+			if strings.EqualFold(candidate, provider) {
+				filtered = append(filtered, model)
+				break
+			}
+		}
+	}
+	return filtered
 }
 
 // ChatCompletions handles the /v1/chat/completions endpoint.

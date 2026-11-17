@@ -283,6 +283,7 @@ func (b *Builder) Build() (*Service, error) {
 	}
 
 	configaccess.Register(&b.cfg.SDKConfig)
+	configaccess.RegisterOpenAICompatibility(b.cfg)
 	pluginHost := b.pluginHost
 	if pluginHost == nil {
 		pluginHost = pluginhost.New()

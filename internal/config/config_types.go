@@ -1115,6 +1115,9 @@ type OpenAICompatibility struct {
 	// BaseURL is the base URL for the external OpenAI-compatible API endpoint.
 	BaseURL string `yaml:"base-url" json:"base-url"`
 
+	// AllowedAPIKeys restricts this provider to these CLIProxy client keys.
+	AllowedAPIKeys []string `yaml:"allowed-api-keys,omitempty" json:"allowed-api-keys,omitempty"`
+
 	// APIKeyEntries defines API keys with optional per-key proxy configuration.
 	APIKeyEntries []OpenAICompatibilityAPIKey `yaml:"api-key-entries,omitempty" json:"api-key-entries,omitempty"`
 

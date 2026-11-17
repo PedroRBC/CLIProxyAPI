@@ -991,6 +991,7 @@ upstream:
 #   openai-compatibility:
 #     - name: "openrouter" # The name of the provider; it will be used in the user agent and other places.
 #       disabled: false # optional: set to true to disable this provider without removing it
+#       allowed-api-keys: ["client-openrouter"] # optional: CLIProxy client keys restricted to this provider and its models
 #       prefix: "test" # optional: require calls like "test/kimi-k2" to target this provider's credentials
 #       base-url: "https://openrouter.ai/api/v1" # The base URL of the provider.
 #       support-prompt-cache-key: false # optional: derive prompt_cache_key for requests from all input protocols

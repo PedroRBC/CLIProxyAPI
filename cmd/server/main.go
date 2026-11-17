@@ -699,6 +699,7 @@ func run() (exitStatus int) {
 
 	// Register built-in access providers before constructing services.
 	configaccess.Register(&cfg.SDKConfig)
+	configaccess.RegisterOpenAICompatibility(cfg)
 	pluginHost.ApplyConfig(context.Background(), cfg)
 	if configLoadedFromHome && homePluginStatusReady {
 		errHomePluginLoad := homeplugins.MarkLoadResults(&homePluginSyncReport, pluginHost)
