@@ -64,6 +64,10 @@ func (h *BaseAPIHandler) executeWithAuthManagerFormats(ctx context.Context, entr
 	if errMsg != nil {
 		return nil, nil, errMsg
 	}
+	providers, errMsg = filterRestrictedProviders(ctx, providers)
+	if errMsg != nil {
+		return nil, nil, errMsg
+	}
 	providers = adjustExecutionProvidersForEntryProtocol(entryProtocol, providers)
 	reqMeta := requestExecutionMetadata(ctx)
 	if execOptions.Path != "" {
