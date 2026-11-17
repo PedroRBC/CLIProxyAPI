@@ -112,7 +112,10 @@ func (h *OpenAIAPIHandler) OpenAIModels(c *gin.Context) {
 
 func (h *OpenAIAPIHandler) modelsForAccess(c *gin.Context) []map[string]any {
 	models := h.Models()
-	provider := strings.TrimSpace(coreusage.AccessProviderFromContext(c))
+	provider := ""
+	if c != nil && c.Request != nil {
+		provider = strings.TrimSpace(coreusage.AccessProviderFromContext(c.Request.Context()))
+	}
 	if provider == "" || (!strings.HasPrefix(provider, "openai-compatible-") && provider != "openai-compatibility") {
 		return models
 	}

@@ -1,14 +1,51 @@
 package openai
 
 import (
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/runtime/executor"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/api/handlers"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
+	coreusage "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/usage"
 )
+
+func TestOpenAIModels_FilterByRequestAccessProvider(t *testing.T) {
+	modelRegistry := registry.GetGlobalRegistry()
+	veniceClientID := "openai-models-access-venice-test"
+	otherClientID := "openai-models-access-other-test"
+	veniceModelID := "openai-models-access-venice-model"
+	otherModelID := "openai-models-access-other-model"
+	modelRegistry.RegisterClient(veniceClientID, "openai-compatible-venice", []*registry.ModelInfo{{ID: veniceModelID}})
+	modelRegistry.RegisterClient(otherClientID, "openai-compatible-other", []*registry.ModelInfo{{ID: otherModelID}})
+	t.Cleanup(func() {
+		modelRegistry.UnregisterClient(veniceClientID)
+		modelRegistry.UnregisterClient(otherClientID)
+	})
+
+	base := handlers.NewBaseAPIHandlers(&config.SDKConfig{}, nil)
+	handler := NewOpenAIAPIHandler(base)
+	request := httptest.NewRequest("GET", "/v1/models", nil)
+	request = request.WithContext(coreusage.WithAccessProvider(request.Context(), "openai-compatible-venice"))
+	ginContext, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ginContext.Request = request
+
+	models := handler.modelsForAccess(ginContext)
+	seen := make(map[string]bool, len(models))
+	for _, model := range models {
+		id, _ := model["id"].(string)
+		seen[id] = true
+	}
+	if !seen[veniceModelID] {
+		t.Fatalf("filtered models missing Venice model %q: %#v", veniceModelID, seen)
+	}
+	if seen[otherModelID] {
+		t.Fatalf("filtered models exposed model from another provider: %#v", seen)
+	}
+}
 
 func TestCodexClientModelsResponseMultiAgentV2FollowsConfig(t *testing.T) {
 	modelID := "codex-client-multi-agent-v2-test"
