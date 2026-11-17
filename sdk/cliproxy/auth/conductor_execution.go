@@ -682,6 +682,7 @@ func (m *Manager) ExecuteStream(ctx context.Context, providers []string, req cli
 		}
 		lastErr = unwrapExecutionBoundaryError(lastErr)
 		lastErr = m.normalizeSessionAffinityNeverTerminalError(lastErr, normalized, retryModel, opts)
+		lastErr = m.subscriptionCooldownForCreditLow(normalized, retryModel, lastErr)
 		if !terminalRoundRejectedByScheduler && !continuitySession.terminated && hasAntigravityProvider(normalized) && shouldAttemptAntigravityCreditsFallback(m, lastErr, normalized) {
 			if result, ok, errCredits := m.tryAntigravityCreditsExecuteStream(ctx, req, opts); errCredits != nil {
 				return nil, errCredits
