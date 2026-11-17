@@ -1,6 +1,8 @@
 package openai
 
 import (
+	"context"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -8,13 +10,24 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/runtime/executor"
+	sdkaccess "github.com/router-for-me/CLIProxyAPI/v8/sdk/access"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/api/handlers"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/auth"
 	coreusage "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/usage"
 )
 
+type testRestrictedAccessProvider struct{}
+
+func (testRestrictedAccessProvider) Identifier() string { return "openai-compatible-venice" }
+
+func (testRestrictedAccessProvider) Authenticate(context.Context, *http.Request) (*sdkaccess.Result, *sdkaccess.AuthError) {
+	return nil, sdkaccess.NewNotHandledError()
+}
+
 func TestOpenAIModels_FilterByRequestAccessProvider(t *testing.T) {
 	modelRegistry := registry.GetGlobalRegistry()
+	sdkaccess.RegisterProvider("openai-models-access-venice-test", testRestrictedAccessProvider{})
+	t.Cleanup(func() { sdkaccess.UnregisterProvider("openai-models-access-venice-test") })
 	veniceClientID := "openai-models-access-venice-test"
 	otherClientID := "openai-models-access-other-test"
 	veniceModelID := "openai-models-access-venice-model"
@@ -40,10 +53,26 @@ func TestOpenAIModels_FilterByRequestAccessProvider(t *testing.T) {
 		seen[id] = true
 	}
 	if !seen[veniceModelID] {
-		t.Fatalf("filtered models missing Venice model %q: %#v", veniceModelID, seen)
+		t.Fatalf("restricted provider key lost Venice model %q: %#v", veniceModelID, seen)
 	}
-	if seen[otherModelID] {
-		t.Fatalf("filtered models exposed model from another provider: %#v", seen)
+	if !seen[otherModelID] {
+		t.Fatalf("restricted provider key did not see unrestricted model: %#v", seen)
+	}
+
+	ordinaryRequest := httptest.NewRequest("GET", "/v1/models", nil)
+	ordinaryRequest = ordinaryRequest.WithContext(coreusage.WithAccessProvider(ordinaryRequest.Context(), "config-inline"))
+	ginContext.Request = ordinaryRequest
+	models = handler.modelsForAccess(ginContext)
+	seen = make(map[string]bool, len(models))
+	for _, model := range models {
+		id, _ := model["id"].(string)
+		seen[id] = true
+	}
+	if seen[veniceModelID] {
+		t.Fatalf("ordinary key exposed restricted provider model: %#v", seen)
+	}
+	if !seen[otherModelID] {
+		t.Fatalf("ordinary key lost unrestricted model: %#v", seen)
 	}
 }
 

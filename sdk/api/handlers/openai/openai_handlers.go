@@ -24,6 +24,7 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/registry"
 	responsesconverter "github.com/router-for-me/CLIProxyAPI/v8/internal/translator/openai/openai/responses"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/util"
+	sdkaccess "github.com/router-for-me/CLIProxyAPI/v8/sdk/access"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/api/handlers"
 	coreusage "github.com/router-for-me/CLIProxyAPI/v8/sdk/cliproxy/usage"
 )
@@ -116,20 +117,45 @@ func (h *OpenAIAPIHandler) modelsForAccess(c *gin.Context) []map[string]any {
 	if c != nil && c.Request != nil {
 		provider = strings.TrimSpace(coreusage.AccessProviderFromContext(c.Request.Context()))
 	}
-	if provider == "" || (!strings.HasPrefix(provider, "openai-compatible-") && provider != "openai-compatibility") {
+	restrictedProviders := restrictedOpenAICompatProviders()
+	if len(restrictedProviders) == 0 {
 		return models
 	}
 	filtered := make([]map[string]any, 0, len(models))
 	for _, model := range models {
 		id, _ := model["id"].(string)
+		accessible := false
 		for _, candidate := range registry.GetGlobalRegistry().GetModelProviders(id) {
-			if strings.EqualFold(candidate, provider) {
-				filtered = append(filtered, model)
+			candidate = strings.TrimSpace(candidate)
+			_, restricted := restrictedProviders[strings.ToLower(candidate)]
+			if !restricted || strings.EqualFold(candidate, provider) {
+				accessible = true
 				break
 			}
 		}
+		if accessible {
+			filtered = append(filtered, model)
+		}
 	}
 	return filtered
+}
+
+func restrictedOpenAICompatProviders() map[string]struct{} {
+	restricted := make(map[string]struct{})
+	for _, accessProvider := range sdkaccess.RegisteredProviders() {
+		if accessProvider == nil {
+			continue
+		}
+		provider := strings.TrimSpace(accessProvider.Identifier())
+		if isRestrictedOpenAICompatProvider(provider) {
+			restricted[strings.ToLower(provider)] = struct{}{}
+		}
+	}
+	return restricted
+}
+
+func isRestrictedOpenAICompatProvider(provider string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(provider)), "openai-compatible-")
 }
 
 // ChatCompletions handles the /v1/chat/completions endpoint.
